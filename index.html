@@ -20,6 +20,7 @@
     body {
       margin: 0;
       overflow: hidden;
+      touch-action: none;
       background:
         radial-gradient(circle at 22% 16%, rgba(215,255,67,.18), transparent 28%),
         linear-gradient(135deg, transparent 0 48%, rgba(245,240,216,.06) 48% 52%, transparent 52% 100%),
@@ -141,6 +142,45 @@
       cursor: pointer;
     }
 
+    .touch-controls {
+      position: absolute;
+      left: 18px;
+      bottom: 18px;
+      z-index: 4;
+      display: none;
+      grid-template-columns: repeat(3, 58px);
+      grid-template-rows: repeat(3, 58px);
+      gap: 8px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .touch-controls button {
+      margin: 0;
+      padding: 0;
+      border: 3px solid var(--ink);
+      background: rgba(215,255,67,.86);
+      color: var(--bg);
+      font: 900 28px "IBM Plex Mono", monospace;
+      border-radius: 0;
+      touch-action: none;
+    }
+
+    .touch-controls button:active { transform: translate(2px, 2px); }
+    .up { grid-column: 2; grid-row: 1; }
+    .left { grid-column: 1; grid-row: 2; }
+    .right { grid-column: 3; grid-row: 2; }
+    .down { grid-column: 2; grid-row: 3; }
+
+    @media (pointer: coarse), (max-width: 760px) {
+      .wrap { padding: 10px; gap: 8px; }
+      header { align-items: flex-start; }
+      .pill { padding: 6px 8px; }
+      footer { display: none; }
+      .touch-controls { display: grid; }
+      .card { box-shadow: 8px 8px 0 var(--accent); }
+    }
+
     .hidden { display: none; }
     footer { opacity: .82; font-size: 13px; }
     .warn { color: var(--danger); }
@@ -164,8 +204,8 @@
       <section id="start" class="overlay">
         <div class="card">
           <h2>Dodge the danger.</h2>
-          <p>Move the little unicorn cat with <span class="keys">arrow keys</span>. Slip past red blocks to score.</p>
-          <p>Catch bright number gates for bonus math points. Watch for the boss vampire. Sound starts after Start. Answers stay under 25.</p>
+          <p>Move the little unicorn cat with <span class="keys">arrow keys</span> or the on-screen buttons. Slip past ponies to score.</p>
+          <p>Catch bright number gates for bonus math points. Watch for the boss pony. Sound starts after Start. Answers stay under 25.</p>
           <button id="startBtn">Start run</button>
         </div>
       </section>
@@ -187,11 +227,18 @@
           <button id="restartBtn">Restart</button>
         </div>
       </section>
+
+      <div class="touch-controls" aria-label="Mobile movement controls">
+        <button class="up" data-key="ArrowUp" aria-label="Move up">▲</button>
+        <button class="left" data-key="ArrowLeft" aria-label="Move left">◀</button>
+        <button class="right" data-key="ArrowRight" aria-label="Move right">▶</button>
+        <button class="down" data-key="ArrowDown" aria-label="Move down">▼</button>
+      </div>
     </main>
 
     <footer>
       <span>Goal: dodge, think fast, keep moving.</span>
-      <span class="warn">Red blocks are danger.</span>
+      <span class="warn">Ponies are danger.</span>
     </footer>
   </div>
 
@@ -212,6 +259,8 @@
 
     const unicornCat = new Image();
     unicornCat.src = 'unicorn-cat-sprite.png';
+    const pony = new Image();
+    pony.src = 'pony.png';
 
     const keys = new Set();
     const state = {
@@ -273,7 +322,7 @@
       if (name === 'correct') { tone(660, .07, 'square', .04); tone(880, .12, 'square', .04, .08); }
       if (name === 'wrong') tone(180, .18, 'sawtooth', .035);
       if (name === 'hit') { tone(120, .16, 'sawtooth', .05); tone(90, .22, 'sawtooth', .04, .08); }
-      if (name === 'boss') { tone(98, .22, 'sawtooth', .045); tone(131, .22, 'sawtooth', .04, .12); }
+      if (name === 'boss') { tone(196, .16, 'triangle', .045); tone(247, .16, 'triangle', .04, .12); }
       if (name === 'bossDodge') { tone(392, .08, 'square', .04); tone(587, .1, 'square', .04, .08); tone(784, .12, 'square', .04, .16); }
       if (name === 'over') { tone(220, .16, 'triangle', .04); tone(150, .22, 'triangle', .04, .15); }
     }
@@ -375,7 +424,7 @@
         w, h, speed: 1.45 + state.level * .12,
         sway: rand(40, 90), phase: rand(0, Math.PI * 2), hit: false, scored: false
       });
-      state.banners.push({ text: 'BOSS VAMPIRE!', x: canvas.clientWidth / 2, y: canvas.clientHeight * .24, life: 80, danger: true });
+      state.banners.push({ text: 'BOSS PONY!', x: canvas.clientWidth / 2, y: canvas.clientHeight * .24, life: 80, danger: true });
       sound('boss');
     }
 
@@ -562,8 +611,8 @@
 
       for (const l of state.lollipops) drawLollipop(l);
 
-      for (const o of state.obstacles) drawVampire(o);
-      for (const boss of state.bosses) drawBossVampire(boss);
+      for (const o of state.obstacles) drawPony(o);
+      for (const boss of state.bosses) drawBossPony(boss);
 
       const p = state.player;
       drawUnicornCat(p);
@@ -638,94 +687,54 @@
       ctx.restore();
     }
 
-    function drawBossVampire(boss) {
+    function drawBossPony(boss) {
       ctx.save();
       ctx.translate(boss.x + boss.w / 2, boss.y + boss.h / 2);
       ctx.scale(1 + Math.sin(state.time * .08) * .035, 1);
-      const o = { x: -boss.w / 2, y: -boss.h / 2, w: boss.w, h: boss.h, tilt: 0 };
-
-      ctx.fillStyle = 'rgba(255,90,60,.18)';
+      ctx.fillStyle = 'rgba(255,90,60,.2)';
       ctx.beginPath();
       ctx.arc(0, 0, boss.w * .72, 0, Math.PI * 2);
       ctx.fill();
-
-      ctx.save();
-      ctx.translate(0, 6);
-      ctx.scale(1.35, 1.35);
-      drawVampireBody(o.w / 1.35, o.h / 1.35, true);
-      ctx.restore();
+      drawPonySprite(-boss.w / 2, -boss.h / 2, boss.w, boss.h, true);
       ctx.restore();
     }
 
-    function drawVampire(o) {
+    function drawPony(o) {
       ctx.save();
       ctx.translate(o.x + o.w / 2, o.y + o.h / 2);
       ctx.rotate(o.tilt + Math.sin(state.time * .08 + o.x) * .04);
-      drawVampireBody(o.w, o.h, false);
+      drawPonySprite(-o.w / 2, -o.h / 2, o.w, o.h, false);
       ctx.restore();
     }
 
-    function drawVampireBody(w, h, boss) {
-      // cape
-      ctx.fillStyle = '#ff5a3c';
-      ctx.beginPath();
-      ctx.moveTo(-w * .5, -h * .18);
-      ctx.lineTo(-w * .36, h * .5);
-      ctx.lineTo(0, h * .28);
-      ctx.lineTo(w * .36, h * .5);
-      ctx.lineTo(w * .5, -h * .18);
-      ctx.closePath();
-      ctx.fill();
+    function drawPonySprite(x, y, w, h, boss) {
+      const size = Math.max(w, h) * (boss ? 1.45 : 1.28);
+      const px = -size / 2;
+      const py = -size / 2;
 
-      // crown for boss
-      if (boss) {
-        ctx.fillStyle = '#d7ff43';
+      if (pony.complete && pony.naturalWidth) {
+        ctx.drawImage(pony, px, py, size, size);
+      } else {
+        ctx.fillStyle = '#ff5a3c';
         ctx.beginPath();
-        ctx.moveTo(-w * .26, -h * .52);
-        ctx.lineTo(-w * .13, -h * .72);
-        ctx.lineTo(0, -h * .52);
-        ctx.lineTo(w * .13, -h * .72);
-        ctx.lineTo(w * .26, -h * .52);
-        ctx.closePath();
+        ctx.roundRect(x, y, w, h, 12);
         ctx.fill();
       }
 
-      // head
-      ctx.fillStyle = '#f5f0d8';
-      ctx.beginPath();
-      ctx.roundRect(-w * .32, -h * .46, w * .64, h * .48, 9);
-      ctx.fill();
-
-      // hair widow peak
-      ctx.fillStyle = '#10150f';
-      ctx.beginPath();
-      ctx.moveTo(-w * .32, -h * .46);
-      ctx.lineTo(0, -h * .16);
-      ctx.lineTo(w * .32, -h * .46);
-      ctx.closePath();
-      ctx.fill();
-
-      // eyes
-      ctx.fillStyle = '#ff5a3c';
-      ctx.fillRect(-w * .19, -h * .26, 7, 6);
-      ctx.fillRect(w * .10, -h * .26, 7, 6);
-
-      // mouth + fangs
-      ctx.fillStyle = '#10150f';
-      ctx.fillRect(-w * .13, -h * .08, w * .26, 4);
-      ctx.fillStyle = '#f5f0d8';
-      ctx.beginPath();
-      ctx.moveTo(-w * .08, -h * .05); ctx.lineTo(-w * .02, h * .09); ctx.lineTo(w * .02, -h * .05);
-      ctx.moveTo(w * .08, -h * .05); ctx.lineTo(w * .14, h * .09); ctx.lineTo(w * .18, -h * .05);
-      ctx.fill();
-
-      // collar
-      ctx.fillStyle = '#10150f';
-      ctx.beginPath();
-      ctx.moveTo(-w * .5, -h * .18); ctx.lineTo(-w * .12, h * .08); ctx.lineTo(0, -h * .06); ctx.lineTo(w * .12, h * .08); ctx.lineTo(w * .5, -h * .18);
-      ctx.strokeStyle = '#10150f';
-      ctx.lineWidth = boss ? 7 : 4;
-      ctx.stroke();
+      if (boss) {
+        ctx.fillStyle = '#d7ff43';
+        ctx.beginPath();
+        ctx.moveTo(-w * .26, -h * .62);
+        ctx.lineTo(-w * .13, -h * .86);
+        ctx.lineTo(0, -h * .62);
+        ctx.lineTo(w * .13, -h * .86);
+        ctx.lineTo(w * .26, -h * .62);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#10150f';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      }
     }
 
     function drawUnicornCat(p) {
@@ -760,6 +769,16 @@
     document.getElementById('startBtn').addEventListener('click', reset);
     document.getElementById('restartBtn').addEventListener('click', reset);
     answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
+
+    document.querySelectorAll('.touch-controls button').forEach(button => {
+      const key = button.dataset.key;
+      const press = e => { e.preventDefault(); keys.add(key); };
+      const release = e => { e.preventDefault(); keys.delete(key); };
+      button.addEventListener('pointerdown', press);
+      button.addEventListener('pointerup', release);
+      button.addEventListener('pointercancel', release);
+      button.addEventListener('pointerleave', release);
+    });
 
     addEventListener('keydown', e => {
       if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
