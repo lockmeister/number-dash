@@ -382,6 +382,7 @@
       mathOverlay.classList.add('hidden');
       gameoverOverlay.classList.add('hidden');
       updateHud();
+      window.focus();
     }
 
     function updateHud() {
@@ -479,6 +480,8 @@
       }
       state.mode = 'play';
       mathOverlay.classList.add('hidden');
+      answerInput.blur();
+      window.focus();
       updateHud();
     }
 
@@ -782,23 +785,40 @@
     document.getElementById('restartBtn').addEventListener('click', reset);
     answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
 
+    function isTouchPointer(e) {
+      return e.pointerType === 'touch' || e.pointerType === 'pen' || matchMedia('(pointer: coarse)').matches;
+    }
     function setTouchTarget(e) {
-      if (state.mode !== 'play') return;
+      if (state.mode !== 'play' || !isTouchPointer(e)) return;
       const rect = canvas.getBoundingClientRect();
       state.touchTarget = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     }
-    canvas.addEventListener('pointerdown', e => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); setTouchTarget(e); });
-    canvas.addEventListener('pointermove', e => { e.preventDefault(); setTouchTarget(e); });
-    canvas.addEventListener('pointerup', e => { e.preventDefault(); state.touchTarget = null; });
-    canvas.addEventListener('pointercancel', e => { e.preventDefault(); state.touchTarget = null; });
+    canvas.addEventListener('pointerdown', e => {
+      if (!isTouchPointer(e)) return;
+      e.preventDefault();
+      canvas.setPointerCapture(e.pointerId);
+      setTouchTarget(e);
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!isTouchPointer(e)) return;
+      e.preventDefault();
+      setTouchTarget(e);
+    });
+    canvas.addEventListener('pointerup', e => { if (isTouchPointer(e)) e.preventDefault(); state.touchTarget = null; });
+    canvas.addEventListener('pointercancel', e => { if (isTouchPointer(e)) e.preventDefault(); state.touchTarget = null; });
+    canvas.addEventListener('pointerleave', () => { state.touchTarget = null; });
 
     addEventListener('keydown', e => {
-      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
-      keys.add(e.key);
-      if (e.key === 'Enter' && state.mode === 'start') reset();
-      if ((e.key === 'r' || e.key === 'R') && state.mode === 'over') reset();
+      const key = e.key || e.code;
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(key)) {
+        e.preventDefault();
+        state.touchTarget = null;
+      }
+      keys.add(key);
+      if (key === 'Enter' && state.mode === 'start') reset();
+      if ((key === 'r' || key === 'R') && state.mode === 'over') reset();
     });
-    addEventListener('keyup', e => keys.delete(e.key));
+    addEventListener('keyup', e => keys.delete(e.key || e.code));
   </script>
 </body>
 </html>
