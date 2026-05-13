@@ -177,7 +177,6 @@
       header { align-items: flex-start; }
       .pill { padding: 6px 8px; }
       footer { display: none; }
-      .touch-controls { display: grid; }
       .card { box-shadow: 8px 8px 0 var(--accent); }
     }
 
@@ -204,7 +203,7 @@
       <section id="start" class="overlay">
         <div class="card">
           <h2>Dodge the danger.</h2>
-          <p>Move the little unicorn cat with <span class="keys">arrow keys</span> or the on-screen buttons. Slip past ponies to score.</p>
+          <p>Move the little unicorn cat with <span class="keys">arrow keys</span> or by dragging on the playfield. Slip past ponies to score.</p>
           <p>Catch bright number gates for bonus math points. Watch for the boss pony. Sound starts after Start. Answers stay under 25.</p>
           <button id="startBtn">Start run</button>
         </div>
@@ -275,6 +274,7 @@
       lollipopSpawn: 90,
       bossSpawn: 900,
       question: null,
+      touchTarget: null,
       player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0 },
       obstacles: [],
       bosses: [],
@@ -369,7 +369,7 @@
     function reset() {
       Object.assign(state, {
         mode: 'play', score: 0, bonus: 0, lives: 3, level: 1, time: 0,
-        spawn: 0, bonusSpawn: 240, lollipopSpawn: 80, bossSpawn: 850, question: null, obstacles: [], bosses: [], gates: [], lollipops: [], sparks: [], banners: []
+        spawn: 0, bonusSpawn: 240, lollipopSpawn: 80, bossSpawn: 850, question: null, touchTarget: null, obstacles: [], bosses: [], gates: [], lollipops: [], sparks: [], banners: []
       });
       initSound();
       sound('start');
@@ -501,6 +501,18 @@
       if (keys.has('ArrowRight')) p.x += p.speed;
       if (keys.has('ArrowUp')) p.y -= p.speed;
       if (keys.has('ArrowDown')) p.y += p.speed;
+      if (state.touchTarget) {
+        const cx = p.x + p.w / 2;
+        const cy = p.y + p.h / 2;
+        const dx = state.touchTarget.x - cx;
+        const dy = state.touchTarget.y - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > 4) {
+          const step = Math.min(p.speed * 1.25, dist);
+          p.x += dx / dist * step;
+          p.y += dy / dist * step;
+        }
+      }
       p.x = Math.max(0, Math.min(canvas.clientWidth - p.w, p.x));
       p.y = Math.max(0, Math.min(canvas.clientHeight - p.h, p.y));
 
@@ -770,15 +782,15 @@
     document.getElementById('restartBtn').addEventListener('click', reset);
     answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });
 
-    document.querySelectorAll('.touch-controls button').forEach(button => {
-      const key = button.dataset.key;
-      const press = e => { e.preventDefault(); keys.add(key); };
-      const release = e => { e.preventDefault(); keys.delete(key); };
-      button.addEventListener('pointerdown', press);
-      button.addEventListener('pointerup', release);
-      button.addEventListener('pointercancel', release);
-      button.addEventListener('pointerleave', release);
-    });
+    function setTouchTarget(e) {
+      if (state.mode !== 'play') return;
+      const rect = canvas.getBoundingClientRect();
+      state.touchTarget = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+    canvas.addEventListener('pointerdown', e => { e.preventDefault(); canvas.setPointerCapture(e.pointerId); setTouchTarget(e); });
+    canvas.addEventListener('pointermove', e => { e.preventDefault(); setTouchTarget(e); });
+    canvas.addEventListener('pointerup', e => { e.preventDefault(); state.touchTarget = null; });
+    canvas.addEventListener('pointercancel', e => { e.preventDefault(); state.touchTarget = null; });
 
     addEventListener('keydown', e => {
       if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) e.preventDefault();
