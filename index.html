@@ -165,7 +165,7 @@
         <div class="card">
           <h2>Dodge the danger.</h2>
           <p>Move the little unicorn cat with <span class="keys">arrow keys</span>. Slip past red blocks to score.</p>
-          <p>Catch bright number gates for bonus math points. Sound starts after you press Start. Answers stay under 25.</p>
+          <p>Catch bright number gates for bonus math points. Watch for the boss vampire. Sound starts after Start. Answers stay under 25.</p>
           <button id="startBtn">Start run</button>
         </div>
       </section>
@@ -224,9 +224,11 @@
       spawn: 0,
       bonusSpawn: 320,
       lollipopSpawn: 90,
+      bossSpawn: 900,
       question: null,
       player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0 },
       obstacles: [],
+      bosses: [],
       gates: [],
       lollipops: [],
       sparks: [],
@@ -271,6 +273,8 @@
       if (name === 'correct') { tone(660, .07, 'square', .04); tone(880, .12, 'square', .04, .08); }
       if (name === 'wrong') tone(180, .18, 'sawtooth', .035);
       if (name === 'hit') { tone(120, .16, 'sawtooth', .05); tone(90, .22, 'sawtooth', .04, .08); }
+      if (name === 'boss') { tone(98, .22, 'sawtooth', .045); tone(131, .22, 'sawtooth', .04, .12); }
+      if (name === 'bossDodge') { tone(392, .08, 'square', .04); tone(587, .1, 'square', .04, .08); tone(784, .12, 'square', .04, .16); }
       if (name === 'over') { tone(220, .16, 'triangle', .04); tone(150, .22, 'triangle', .04, .15); }
     }
 
@@ -278,21 +282,45 @@
     function rects(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
 
     function makeQuestion() {
-      const op = Math.random() < .72 ? '+' : '-';
-      if (op === '+') {
+      const kind = Math.floor(rand(0, 7));
+
+      if (kind === 0) {
         const answer = Math.floor(rand(2, 26));
         const a = Math.floor(rand(1, answer));
         return { text: `${a} + ${answer - a}`, answer };
       }
-      const a = Math.floor(rand(2, 26));
-      const answer = Math.floor(rand(0, a));
-      return { text: `${a} - ${a - answer}`, answer };
+      if (kind === 1) {
+        const a = Math.floor(rand(2, 26));
+        const answer = Math.floor(rand(0, a));
+        return { text: `${a} - ${a - answer}`, answer };
+      }
+      if (kind === 2) {
+        const a = Math.floor(rand(2, 6));
+        const b = Math.floor(rand(2, 6));
+        return { text: `${a} × ${b}`, answer: a * b };
+      }
+      if (kind === 3) {
+        const answer = Math.floor(rand(1, 13));
+        const b = Math.floor(rand(1, 14));
+        return { text: `? + ${b} = ${answer + b}`, answer };
+      }
+      if (kind === 4) {
+        const answer = Math.floor(rand(1, 18));
+        const b = Math.floor(rand(1, 8));
+        return { text: `? - ${b} = ${answer - b}`, answer };
+      }
+      if (kind === 5) {
+        const n = Math.floor(rand(1, 13));
+        return { text: `double ${n}`, answer: n * 2 };
+      }
+      const answer = Math.floor(rand(1, 13));
+      return { text: `half of ${answer * 2}`, answer };
     }
 
     function reset() {
       Object.assign(state, {
         mode: 'play', score: 0, bonus: 0, lives: 3, level: 1, time: 0,
-        spawn: 0, bonusSpawn: 240, lollipopSpawn: 80, question: null, obstacles: [], gates: [], lollipops: [], sparks: [], banners: []
+        spawn: 0, bonusSpawn: 240, lollipopSpawn: 80, bossSpawn: 850, question: null, obstacles: [], bosses: [], gates: [], lollipops: [], sparks: [], banners: []
       });
       initSound();
       sound('start');
@@ -335,8 +363,20 @@
         x: rand(20, canvas.clientWidth - size - 20), y: -size,
         w: size, h: size + 18,
         speed: rand(1.8, 3.2) + state.level * .12,
-        hue: rand(0, 360), swirl: rand(0, Math.PI * 2)
+        hue: 330, swirl: rand(0, Math.PI * 2)
       });
+    }
+
+    function spawnBoss() {
+      const w = Math.min(180, canvas.clientWidth * .28);
+      const h = 128;
+      state.bosses.push({
+        x: rand(20, Math.max(30, canvas.clientWidth - w - 20)), y: -h - 20,
+        w, h, speed: 1.45 + state.level * .12,
+        sway: rand(40, 90), phase: rand(0, Math.PI * 2), hit: false, scored: false
+      });
+      state.banners.push({ text: 'BOSS VAMPIRE!', x: canvas.clientWidth / 2, y: canvas.clientHeight * .24, life: 80, danger: true });
+      sound('boss');
     }
 
     function popSparks(x, y, color) {
@@ -430,6 +470,11 @@
         spawnLollipop();
         state.lollipopSpawn = rand(42, 95);
       }
+      state.bossSpawn--;
+      if (state.bossSpawn <= 0) {
+        spawnBoss();
+        state.bossSpawn = rand(900, 1250);
+      }
 
       for (const o of state.obstacles) {
         o.y += o.speed;
@@ -444,6 +489,28 @@
         }
       }
       state.obstacles = state.obstacles.filter(o => o.y < canvas.clientHeight + 80);
+
+      for (const boss of state.bosses) {
+        boss.y += boss.speed;
+        boss.x += Math.sin(state.time * .035 + boss.phase) * 2.2;
+        boss.x = Math.max(0, Math.min(canvas.clientWidth - boss.w, boss.x));
+        if (!boss.scored && boss.y > canvas.clientHeight + 20) {
+          boss.scored = true;
+          state.score += 50;
+          state.bonus += 10;
+          state.banners.push({ text: 'BOSS DODGED +50', x: canvas.clientWidth / 2, y: canvas.clientHeight * .35, life: 85 });
+          sound('bossDodge');
+        }
+        if (!boss.hit && p.inv === 0 && rects(p, boss)) {
+          boss.hit = true;
+          state.lives--;
+          p.inv = 95;
+          popSparks(p.x + p.w / 2, p.y + p.h / 2, '#ff5a3c');
+          sound('hit');
+          if (state.lives <= 0) endGame();
+        }
+      }
+      state.bosses = state.bosses.filter(boss => boss.y < canvas.clientHeight + 170);
 
       for (const g of state.gates) {
         g.y += g.speed;
@@ -496,6 +563,7 @@
       for (const l of state.lollipops) drawLollipop(l);
 
       for (const o of state.obstacles) drawVampire(o);
+      for (const boss of state.bosses) drawBossVampire(boss);
 
       const p = state.player;
       drawUnicornCat(p);
@@ -524,7 +592,7 @@
         ctx.lineWidth = 8;
         ctx.strokeStyle = '#10150f';
         ctx.strokeText(b.text, 0, 0);
-        ctx.fillStyle = '#d7ff43';
+        ctx.fillStyle = b.danger ? '#ff5a3c' : '#d7ff43';
         ctx.fillText(b.text, 0, 0);
         ctx.restore();
       }
@@ -551,7 +619,7 @@
       ctx.lineTo(0, r + 22);
       ctx.stroke();
 
-      ctx.fillStyle = `hsl(${l.hue} 100% 62%)`;
+      ctx.fillStyle = '#ff6fb1';
       ctx.beginPath();
       ctx.arc(0, 0, r, 0, Math.PI * 2);
       ctx.fill();
@@ -570,12 +638,34 @@
       ctx.restore();
     }
 
+    function drawBossVampire(boss) {
+      ctx.save();
+      ctx.translate(boss.x + boss.w / 2, boss.y + boss.h / 2);
+      ctx.scale(1 + Math.sin(state.time * .08) * .035, 1);
+      const o = { x: -boss.w / 2, y: -boss.h / 2, w: boss.w, h: boss.h, tilt: 0 };
+
+      ctx.fillStyle = 'rgba(255,90,60,.18)';
+      ctx.beginPath();
+      ctx.arc(0, 0, boss.w * .72, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.save();
+      ctx.translate(0, 6);
+      ctx.scale(1.35, 1.35);
+      drawVampireBody(o.w / 1.35, o.h / 1.35, true);
+      ctx.restore();
+      ctx.restore();
+    }
+
     function drawVampire(o) {
       ctx.save();
       ctx.translate(o.x + o.w / 2, o.y + o.h / 2);
       ctx.rotate(o.tilt + Math.sin(state.time * .08 + o.x) * .04);
-      const w = o.w, h = o.h;
+      drawVampireBody(o.w, o.h, false);
+      ctx.restore();
+    }
 
+    function drawVampireBody(w, h, boss) {
       // cape
       ctx.fillStyle = '#ff5a3c';
       ctx.beginPath();
@@ -586,6 +676,19 @@
       ctx.lineTo(w * .5, -h * .18);
       ctx.closePath();
       ctx.fill();
+
+      // crown for boss
+      if (boss) {
+        ctx.fillStyle = '#d7ff43';
+        ctx.beginPath();
+        ctx.moveTo(-w * .26, -h * .52);
+        ctx.lineTo(-w * .13, -h * .72);
+        ctx.lineTo(0, -h * .52);
+        ctx.lineTo(w * .13, -h * .72);
+        ctx.lineTo(w * .26, -h * .52);
+        ctx.closePath();
+        ctx.fill();
+      }
 
       // head
       ctx.fillStyle = '#f5f0d8';
@@ -621,9 +724,8 @@
       ctx.beginPath();
       ctx.moveTo(-w * .5, -h * .18); ctx.lineTo(-w * .12, h * .08); ctx.lineTo(0, -h * .06); ctx.lineTo(w * .12, h * .08); ctx.lineTo(w * .5, -h * .18);
       ctx.strokeStyle = '#10150f';
-      ctx.lineWidth = 4;
+      ctx.lineWidth = boss ? 7 : 4;
       ctx.stroke();
-      ctx.restore();
     }
 
     function drawUnicornCat(p) {
