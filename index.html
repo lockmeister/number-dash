@@ -194,6 +194,7 @@
         <div class="pill">Bonus <span id="bonus">0</span></div>
         <div class="pill">Lives <span id="lives">3</span></div>
         <div class="pill">Level <span id="level">1</span></div>
+        <div class="pill">Medals <span id="medals">0</span></div>
       </div>
     </header>
 
@@ -249,6 +250,7 @@
     const bonusEl = document.getElementById('bonus');
     const livesEl = document.getElementById('lives');
     const levelEl = document.getElementById('level');
+    const medalsEl = document.getElementById('medals');
     const startOverlay = document.getElementById('start');
     const mathOverlay = document.getElementById('math');
     const gameoverOverlay = document.getElementById('gameover');
@@ -275,7 +277,7 @@
       bossSpawn: 900,
       question: null,
       touchTarget: null,
-      player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0 },
+      player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0, medals: 0, medalTimer: 0 },
       obstacles: [],
       bosses: [],
       gates: [],
@@ -378,6 +380,8 @@
       state.player.inv = 0;
       state.player.colorTimer = 0;
       state.player.hue = 0;
+      state.player.medals = 0;
+      state.player.medalTimer = 0;
       startOverlay.classList.add('hidden');
       mathOverlay.classList.add('hidden');
       gameoverOverlay.classList.add('hidden');
@@ -390,6 +394,7 @@
       bonusEl.textContent = state.bonus;
       livesEl.textContent = state.lives;
       levelEl.textContent = state.level;
+      medalsEl.textContent = state.player.medals;
     }
 
     function spawnObstacle() {
@@ -473,6 +478,8 @@
       if (value === state.question.answer) {
         state.bonus += 25;
         state.score += 25;
+        state.player.medals++;
+        state.player.medalTimer = 120;
         superCelebrate(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2);
         sound('correct');
       } else {
@@ -488,7 +495,7 @@
     function endGame() {
       state.mode = 'over';
       sound('over');
-      finalScore.textContent = `Score ${Math.floor(state.score)}   Bonus ${state.bonus}`;
+      finalScore.textContent = `Score ${Math.floor(state.score)}   Bonus ${state.bonus}   Medals ${state.player.medals}`;
       gameoverOverlay.classList.remove('hidden');
     }
 
@@ -499,6 +506,7 @@
       state.level = 1 + Math.floor(state.score / 180);
       p.inv = Math.max(0, p.inv - 1);
       p.colorTimer = Math.max(0, p.colorTimer - 1);
+      p.medalTimer = Math.max(0, p.medalTimer - 1);
 
       if (keys.has('ArrowLeft')) p.x -= p.speed;
       if (keys.has('ArrowRight')) p.x += p.speed;
@@ -631,7 +639,7 @@
 
       const p = state.player;
       drawUnicornCat(p);
-
+      drawMedals(p);
 
       for (const s of state.sparks) {
         ctx.save();
@@ -750,6 +758,46 @@
         ctx.lineWidth = 4;
         ctx.stroke();
       }
+    }
+
+    function drawMedals(p) {
+      if (!p.medals) return;
+      ctx.save();
+      const shown = Math.min(p.medals, 5);
+      const pulse = p.medalTimer > 0 ? 1 + Math.sin(state.time * .35) * .12 : 1;
+      const startX = p.x + p.w / 2 - (shown - 1) * 9;
+      const y = p.y - 12 - (p.medalTimer > 0 ? 8 : 0);
+      for (let i = 0; i < shown; i++) {
+        const x = startX + i * 18;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(pulse, pulse);
+        ctx.fillStyle = '#ff5a3c';
+        ctx.beginPath();
+        ctx.moveTo(-5, 8); ctx.lineTo(-1, 18); ctx.lineTo(3, 8);
+        ctx.moveTo(5, 8); ctx.lineTo(1, 18); ctx.lineTo(-3, 8);
+        ctx.fill();
+        ctx.fillStyle = '#d7ff43';
+        ctx.beginPath();
+        ctx.arc(0, 0, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#10150f';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#10150f';
+        ctx.font = '900 10px Lexend';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('M', 0, 1);
+        ctx.restore();
+      }
+      if (p.medals > 5) {
+        ctx.fillStyle = '#f5f0d8';
+        ctx.font = '900 16px "IBM Plex Mono"';
+        ctx.textAlign = 'left';
+        ctx.fillText(`×${p.medals}`, startX + shown * 18 - 5, y + 5);
+      }
+      ctx.restore();
     }
 
     function drawUnicornCat(p) {
