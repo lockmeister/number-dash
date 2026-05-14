@@ -131,6 +131,18 @@
       padding: 8px 0;
     }
 
+    .name-row { margin-top: 18px; }
+    .name-row label {
+      display: block;
+      font: 900 14px "IBM Plex Mono", monospace;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    #playerName {
+      font-size: clamp(20px, 3vw, 34px);
+    }
+
     button {
       margin-top: 20px;
       border: 3px solid var(--ink);
@@ -206,6 +218,10 @@
           <h2>Dodge the danger.</h2>
           <p>Move the little unicorn cat with <span class="keys">arrow keys</span> or by dragging on the playfield. Slip past ponies to score.</p>
           <p>Catch bright number gates for bonus math points. Watch for the boss pony. Sound starts after Start. Answers stay under 25.</p>
+          <div class="name-row">
+            <label for="playerName">Player name</label>
+            <input id="playerName" autocomplete="name" maxlength="40" placeholder="type your name" />
+          </div>
           <button id="startBtn">Start run</button>
         </div>
       </section>
@@ -256,12 +272,42 @@
     const gameoverOverlay = document.getElementById('gameover');
     const questionEl = document.getElementById('question');
     const answerInput = document.getElementById('answer');
+    const playerNameInput = document.getElementById('playerName');
     const finalScore = document.getElementById('finalScore');
 
     const catSheet = new Image();
     catSheet.src = 'cat-spritesheet.png';
     const pony = new Image();
     pony.src = 'pony.png';
+
+    const ANALYTICS_URL = 'https://number-dash-analytics.lachlan-1c1.workers.dev/track';
+    const sessionId = localStorage.getItem('numberDashSessionId') || crypto.randomUUID();
+    localStorage.setItem('numberDashSessionId', sessionId);
+    playerNameInput.value = localStorage.getItem('numberDashPlayerName') || '';
+
+    function playerName() { return playerNameInput.value.trim(); }
+    function savePlayerName() {
+      const name = playerName();
+      if (name) localStorage.setItem('numberDashPlayerName', name);
+    }
+    function track(event, details = {}) {
+      const payload = {
+        event,
+        playerName: playerName(),
+        sessionId,
+        url: location.href,
+        score: Math.floor(state.score || 0),
+        bonus: state.bonus || 0,
+        lives: state.lives || 0,
+        medals: state.player?.medals || 0,
+        details
+      };
+      try {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+        if (navigator.sendBeacon && navigator.sendBeacon(ANALYTICS_URL, blob)) return;
+      } catch {}
+      fetch(ANALYTICS_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload), keepalive: true }).catch(() => {});
+    }
 
     const keys = new Set();
     const state = {
@@ -374,8 +420,10 @@
         mode: 'play', score: 0, bonus: 0, lives: 3, level: 1, time: 0,
         spawn: 0, bonusSpawn: 240, lollipopSpawn: 80, bossSpawn: 850, question: null, touchTarget: null, obstacles: [], bosses: [], gates: [], lollipops: [], sparks: [], banners: []
       });
+      savePlayerName();
       initSound();
       sound('start');
+      track('start');
       state.player.x = canvas.clientWidth / 2 - state.player.w / 2;
       state.player.y = canvas.clientHeight - 82;
       state.player.inv = 0;
@@ -492,11 +540,14 @@
           state.player.lifeTimer = 150;
           state.banners.push({ text: '+1 GHOST LIFE!', x: canvas.clientWidth / 2, y: canvas.clientHeight * .28, life: 95 });
           sound('life');
+          track('life_earned', { medals: state.player.medals });
         }
         superCelebrate(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2);
         sound('correct');
+        track('math_correct', { question: state.question.text });
       } else {
         sound('wrong');
+        track('math_wrong', { question: state.question.text, answer: state.question.answer, typed: answerInput.value.trim() });
       }
       state.mode = 'play';
       mathOverlay.classList.add('hidden');
@@ -510,6 +561,7 @@
       sound('over');
       finalScore.textContent = `Score ${Math.floor(state.score)}   Bonus ${state.bonus}   Medals ${state.player.medals}   Lives ${state.lives}`;
       gameoverOverlay.classList.remove('hidden');
+      track('game_over');
     }
 
     function update() {
@@ -622,6 +674,7 @@
           p.hue = (p.hue + rand(70, 170)) % 360;
           popSparks(l.x + l.w / 2, l.y + l.h / 2, '#d7ff43');
           sound('candy');
+          track('lollipop');
           l.y = canvas.clientHeight + 100;
         }
       }
@@ -897,7 +950,10 @@
 
     function loop() { update(); draw(); requestAnimationFrame(loop); }
     loop();
+    track('page_load');
 
+    playerNameInput.addEventListener('change', savePlayerName);
+    playerNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); reset(); } });
     document.getElementById('startBtn').addEventListener('click', reset);
     document.getElementById('restartBtn').addEventListener('click', reset);
     answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitAnswer(); });

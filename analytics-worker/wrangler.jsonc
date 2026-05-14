@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "number-dash-analytics",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-14",
+  "account_id": "1c12b128303d41ba455d1eb00277779f",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "number-dash-analytics",
+      "database_id": "1aba0cfd-4714-47cf-bfad-f6895ca5fb9c"
+    }
+  ]
+}
