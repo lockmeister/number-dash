@@ -277,7 +277,7 @@
       bossSpawn: 900,
       question: null,
       touchTarget: null,
-      player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0, medals: 0, medalTimer: 0 },
+      player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0, medals: 0, medalTimer: 0, medalsTowardLife: 0, lifeTimer: 0 },
       obstacles: [],
       bosses: [],
       gates: [],
@@ -322,6 +322,7 @@
       if (name === 'gate') { tone(523, .08, 'triangle', .045); tone(784, .12, 'triangle', .045, .07); }
       if (name === 'candy') { tone(880, .05, 'triangle', .035); tone(1175, .07, 'triangle', .035, .045); }
       if (name === 'correct') { tone(660, .07, 'square', .04); tone(880, .12, 'square', .04, .08); }
+      if (name === 'life') { tone(523, .08, 'triangle', .05); tone(784, .1, 'triangle', .05, .08); tone(1046, .18, 'triangle', .055, .17); }
       if (name === 'wrong') tone(180, .18, 'sawtooth', .035);
       if (name === 'hit') { tone(120, .16, 'sawtooth', .05); tone(90, .22, 'sawtooth', .04, .08); }
       if (name === 'boss') { tone(196, .16, 'triangle', .045); tone(247, .16, 'triangle', .04, .12); }
@@ -382,6 +383,8 @@
       state.player.hue = 0;
       state.player.medals = 0;
       state.player.medalTimer = 0;
+      state.player.medalsTowardLife = 0;
+      state.player.lifeTimer = 0;
       startOverlay.classList.add('hidden');
       mathOverlay.classList.add('hidden');
       gameoverOverlay.classList.add('hidden');
@@ -479,7 +482,15 @@
         state.bonus += 25;
         state.score += 25;
         state.player.medals++;
+        state.player.medalsTowardLife++;
         state.player.medalTimer = 120;
+        if (state.player.medalsTowardLife >= 3) {
+          state.player.medalsTowardLife = 0;
+          state.lives++;
+          state.player.lifeTimer = 150;
+          state.banners.push({ text: '+1 GHOST LIFE!', x: canvas.clientWidth / 2, y: canvas.clientHeight * .28, life: 95 });
+          sound('life');
+        }
         superCelebrate(state.player.x + state.player.w / 2, state.player.y + state.player.h / 2);
         sound('correct');
       } else {
@@ -495,7 +506,7 @@
     function endGame() {
       state.mode = 'over';
       sound('over');
-      finalScore.textContent = `Score ${Math.floor(state.score)}   Bonus ${state.bonus}   Medals ${state.player.medals}`;
+      finalScore.textContent = `Score ${Math.floor(state.score)}   Bonus ${state.bonus}   Medals ${state.player.medals}   Lives ${state.lives}`;
       gameoverOverlay.classList.remove('hidden');
     }
 
@@ -507,6 +518,7 @@
       p.inv = Math.max(0, p.inv - 1);
       p.colorTimer = Math.max(0, p.colorTimer - 1);
       p.medalTimer = Math.max(0, p.medalTimer - 1);
+      p.lifeTimer = Math.max(0, p.lifeTimer - 1);
 
       if (keys.has('ArrowLeft')) p.x -= p.speed;
       if (keys.has('ArrowRight')) p.x += p.speed;
@@ -639,6 +651,7 @@
 
       const p = state.player;
       drawUnicornCat(p);
+      drawGhostLives(p);
       drawMedals(p);
 
       for (const s of state.sparks) {
@@ -758,6 +771,44 @@
         ctx.lineWidth = 4;
         ctx.stroke();
       }
+    }
+
+    function drawGhostLives(p) {
+      const count = Math.min(state.lives, 7);
+      if (!count) return;
+      ctx.save();
+      const pulse = p.lifeTimer > 0 ? 1 + Math.sin(state.time * .45) * .16 : 1;
+      const startX = p.x + p.w / 2 - (count - 1) * 12;
+      const y = p.y - 44 - (p.lifeTimer > 0 ? 8 : 0);
+      for (let i = 0; i < count; i++) {
+        const x = startX + i * 24;
+        ctx.save();
+        ctx.translate(x, y + Math.sin(state.time * .08 + i) * 3);
+        ctx.scale(pulse, pulse);
+        ctx.globalAlpha = .88;
+        ctx.fillStyle = '#f5f0d8';
+        ctx.beginPath();
+        ctx.arc(0, -2, 10, Math.PI, 0);
+        ctx.lineTo(10, 11);
+        ctx.quadraticCurveTo(5, 7, 0, 12);
+        ctx.quadraticCurveTo(-5, 7, -10, 11);
+        ctx.lineTo(-10, -2);
+        ctx.fill();
+        ctx.strokeStyle = p.lifeTimer > 0 ? '#d7ff43' : '#10150f';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#10150f';
+        ctx.fillRect(-5, -3, 3, 4);
+        ctx.fillRect(3, -3, 3, 4);
+        ctx.restore();
+      }
+      if (state.lives > count) {
+        ctx.fillStyle = '#f5f0d8';
+        ctx.font = '900 16px "IBM Plex Mono"';
+        ctx.textAlign = 'left';
+        ctx.fillText(`×${state.lives}`, startX + count * 24 - 8, y + 5);
+      }
+      ctx.restore();
     }
 
     function drawMedals(p) {
