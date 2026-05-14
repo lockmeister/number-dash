@@ -258,8 +258,8 @@
     const answerInput = document.getElementById('answer');
     const finalScore = document.getElementById('finalScore');
 
-    const unicornCat = new Image();
-    unicornCat.src = 'unicorn-cat-sprite.png';
+    const catSheet = new Image();
+    catSheet.src = 'cat-spritesheet.png';
     const pony = new Image();
     pony.src = 'pony.png';
 
@@ -277,7 +277,7 @@
       bossSpawn: 900,
       question: null,
       touchTarget: null,
-      player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0, medals: 0, medalTimer: 0, medalsTowardLife: 0, lifeTimer: 0 },
+      player: { x: 470, y: 430, w: 68, h: 68, speed: 5.4, inv: 0, colorTimer: 0, hue: 0, medals: 0, medalTimer: 0, medalsTowardLife: 0, lifeTimer: 0, facing: 'down', moving: false },
       obstacles: [],
       bosses: [],
       gates: [],
@@ -385,6 +385,8 @@
       state.player.medalTimer = 0;
       state.player.medalsTowardLife = 0;
       state.player.lifeTimer = 0;
+      state.player.facing = 'down';
+      state.player.moving = false;
       startOverlay.classList.add('hidden');
       mathOverlay.classList.add('hidden');
       gameoverOverlay.classList.add('hidden');
@@ -520,10 +522,11 @@
       p.medalTimer = Math.max(0, p.medalTimer - 1);
       p.lifeTimer = Math.max(0, p.lifeTimer - 1);
 
-      if (keys.has('ArrowLeft')) p.x -= p.speed;
-      if (keys.has('ArrowRight')) p.x += p.speed;
-      if (keys.has('ArrowUp')) p.y -= p.speed;
-      if (keys.has('ArrowDown')) p.y += p.speed;
+      let moveX = 0, moveY = 0;
+      if (keys.has('ArrowLeft')) moveX -= p.speed;
+      if (keys.has('ArrowRight')) moveX += p.speed;
+      if (keys.has('ArrowUp')) moveY -= p.speed;
+      if (keys.has('ArrowDown')) moveY += p.speed;
       if (state.touchTarget) {
         const cx = p.x + p.w / 2;
         const cy = p.y + p.h / 2;
@@ -532,9 +535,16 @@
         const dist = Math.hypot(dx, dy);
         if (dist > 4) {
           const step = Math.min(p.speed * 1.25, dist);
-          p.x += dx / dist * step;
-          p.y += dy / dist * step;
+          moveX += dx / dist * step;
+          moveY += dy / dist * step;
         }
+      }
+      p.x += moveX;
+      p.y += moveY;
+      p.moving = Math.abs(moveX) + Math.abs(moveY) > .1;
+      if (p.moving) {
+        if (Math.abs(moveX) > Math.abs(moveY)) p.facing = moveX < 0 ? 'left' : 'right';
+        else p.facing = moveY < 0 ? 'up' : 'down';
       }
       p.x = Math.max(0, Math.min(canvas.clientWidth - p.w, p.x));
       p.y = Math.max(0, Math.min(canvas.clientHeight - p.h, p.y));
@@ -855,23 +865,31 @@
       ctx.save();
       if (p.inv && Math.floor(p.inv / 5) % 2 === 0) ctx.globalAlpha = .35;
       const bob = Math.sin(state.time * .18) * 2;
-      const pad = 12;
-      const x = p.x - pad;
-      const y = p.y + bob - pad;
-      const size = p.w + pad * 2;
+      const size = p.w + 28;
+      const x = p.x + p.w / 2 - size / 2;
+      const y = p.y + p.h / 2 - size / 2 + bob;
+      let col = 0, row = 0, flip = false;
 
-      if (unicornCat.complete && unicornCat.naturalWidth) {
+      if (p.lifeTimer > 0 || p.medalTimer > 0) { col = 0; row = 2; }
+      else if (p.facing === 'up') { col = 3; row = 0; }
+      else if (p.facing === 'left') { col = 2; row = 0; }
+      else if (p.facing === 'right') { col = 2; row = 0; flip = true; }
+      else if (p.moving) { col = Math.floor(state.time / 12) % 2; row = 0; }
+
+      if (catSheet.complete && catSheet.naturalWidth) {
         if (p.colorTimer > 0) ctx.filter = `hue-rotate(${p.hue}deg) saturate(2.2) brightness(1.12)`;
-        ctx.drawImage(unicornCat, x, y, size, size);
+        if (flip) {
+          ctx.translate(x + size, y);
+          ctx.scale(-1, 1);
+          ctx.drawImage(catSheet, col * 160, row * 160, 160, 160, 0, 0, size, size);
+        } else {
+          ctx.drawImage(catSheet, col * 160, row * 160, 160, 160, x, y, size, size);
+        }
         ctx.filter = 'none';
       } else {
         ctx.fillStyle = p.colorTimer > 0 ? `hsl(${p.hue} 100% 75%)` : '#f5f0d8';
         ctx.beginPath();
         ctx.roundRect(p.x + 8, p.y + 14, 42, 34, 12);
-        ctx.fill();
-        ctx.fillStyle = '#d7ff43';
-        ctx.beginPath();
-        ctx.moveTo(p.x + 32, p.y + 8); ctx.lineTo(p.x + 38, p.y - 12); ctx.lineTo(p.x + 44, p.y + 8);
         ctx.fill();
       }
       ctx.restore();
